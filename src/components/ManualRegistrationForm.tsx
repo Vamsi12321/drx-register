@@ -1,12 +1,13 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
-import { User, Mail, Phone, Building2, Stethoscope, Send } from "lucide-react";
+import { User, Mail, Phone, Building2, Send } from "lucide-react";
 import { doctorRegistrationSchema, type DoctorRegistrationFormData } from "@/lib/validation";
 import type { DoctorRegistrationData, LocationData } from "@/lib/types";
 import LocationPicker from "./LocationPicker";
+import SpecializationSelect from "./SpecializationSelect";
 import { useState } from "react";
 
 interface ManualRegistrationFormProps {
@@ -26,6 +27,7 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }: Manual
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<DoctorRegistrationFormData>({
@@ -52,42 +54,12 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }: Manual
     onSubmit(finalData);
   };
 
+  // Text input fields (all except department)
   const inputFields = [
-    {
-      name: "name" as const,
-      label: "Full Name",
-      icon: User,
-      placeholder: "Dr. Rahul Sharma",
-      type: "text",
-    },
-    {
-      name: "email" as const,
-      label: "Email Address",
-      icon: Mail,
-      placeholder: "rahul@gmail.com",
-      type: "email",
-    },
-    {
-      name: "phone" as const,
-      label: "Phone Number",
-      icon: Phone,
-      placeholder: "9876543210",
-      type: "tel",
-    },
-    {
-      name: "hospital" as const,
-      label: "Hospital / Clinic",
-      icon: Building2,
-      placeholder: "Apollo Hospital",
-      type: "text",
-    },
-    {
-      name: "department" as const,
-      label: "Department / Specialization",
-      icon: Stethoscope,
-      placeholder: "Cardiology",
-      type: "text",
-    },
+    { name: "name" as const, label: "Full Name", icon: User, placeholder: "Dr. Rahul Sharma", type: "text" },
+    { name: "email" as const, label: "Email Address", icon: Mail, placeholder: "rahul@gmail.com", type: "email" },
+    { name: "phone" as const, label: "Phone Number", icon: Phone, placeholder: "9876543210", type: "tel" },
+    { name: "hospital" as const, label: "Hospital / Clinic", icon: Building2, placeholder: "Apollo Hospital", type: "text" },
   ];
 
   return (
@@ -104,8 +76,9 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }: Manual
       </div>
 
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8">
-        {/* Form Fields */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+
+          {/* Text inputs */}
           {inputFields.map((field, index) => (
             <motion.div
               key={field.name}
@@ -136,6 +109,38 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }: Manual
               )}
             </motion.div>
           ))}
+
+          {/* Specialization dropdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Department / Specialization
+            </label>
+            <Controller
+              name="department"
+              control={control}
+              render={({ field }) => (
+                <SpecializationSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.department?.message}
+                />
+              )}
+            />
+            {errors.department && (
+              <p className="mt-1 text-xs text-red-500">{errors.department.message}</p>
+            )}
+            {/* Show AI-detected badge if prefilled */}
+            {prefillData?.department && (
+              <p className="mt-1 text-xs text-drx-600 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-drx-500 inline-block" />
+                AI detected: <span className="font-medium">{prefillData.department}</span>
+              </p>
+            )}
+          </motion.div>
         </div>
 
         {/* Location Picker */}
@@ -147,7 +152,7 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }: Manual
           <LocationPicker onLocationChange={handleLocationChange} />
         </motion.div>
 
-        {/* Location Summary */}
+        {/* Location summary */}
         {locationData.address && (
           <motion.div
             initial={{ opacity: 0 }}

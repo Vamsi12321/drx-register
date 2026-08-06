@@ -17,6 +17,9 @@ export async function POST(request) {
     const response = await fetch(`${BACKEND_URL}/api/voice/transcribe`, {
       method: "POST",
       body: backendFormData,
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
     });
 
     const data = await response.json();

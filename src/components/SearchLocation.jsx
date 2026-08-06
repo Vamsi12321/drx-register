@@ -96,7 +96,7 @@ export default function SearchLocation({ onLocationSelected }) {
         <div className="flex flex-wrap gap-1.5">
           {["Apollo Hospital Hyderabad", "AIG Hospital", "KIMS Vizag", "Fortis Hospital", "AIIMS Delhi"].map((s) => (
             <button key={s} type="button" onClick={() => handleInputChange(s)}
-              className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-drx-50 hover:text-drx-700 transition-colors">
+              className="px-2 py-1 text-[10px] bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors">
               {s}
             </button>
           ))}

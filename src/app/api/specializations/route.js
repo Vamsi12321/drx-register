@@ -6,6 +6,9 @@ export async function GET() {
   try {
     const response = await fetch(`${BACKEND_URL}/api/specializations`, {
       cache: "force-cache",
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
     });
     const data = await response.json();
     return NextResponse.json(data);

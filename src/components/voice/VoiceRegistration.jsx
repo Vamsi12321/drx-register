@@ -152,25 +152,25 @@ export default function VoiceRegistration({ onComplete }) {
 
         {/* Title */}
         <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="text-center mb-6 flex-shrink-0">
-          <div className="flex items-center justify-center gap-6 mb-1">
-            <div className="grid grid-cols-3 gap-1.5">
+          className="text-center mb-4 md:mb-6 flex-shrink-0">
+          <div className="flex items-center justify-center gap-3 md:gap-6 mb-1">
+            <div className="hidden sm:grid grid-cols-3 gap-1.5">
               {[...Array(9)].map((_, i) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-300/50" />)}
             </div>
-            <h1 className="text-[28px] font-black text-gray-900">AI Voice Registration</h1>
-            <div className="grid grid-cols-3 gap-1.5">
+            <h1 className="text-xl sm:text-2xl md:text-[28px] font-black text-gray-900">AI Voice Registration</h1>
+            <div className="hidden sm:grid grid-cols-3 gap-1.5">
               {[...Array(9)].map((_, i) => <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-300/50" />)}
             </div>
           </div>
-          <p className="text-sm text-gray-400">Speak your details in English, Hindi, or Telugu. AI will handle the rest.</p>
+          <p className="text-xs md:text-sm text-gray-400">Speak your details in English, Hindi, or Telugu. AI will handle the rest.</p>
         </motion.div>
 
-        {/* ── MIC + WAVEFORM (idle/recording) ── */}
+        {/* ── MIC + WAVEFORM ── */}
         {showMic && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
             className="flex items-center justify-center gap-2 mb-4 flex-shrink-0 w-full max-w-2xl px-4">
-            {/* Left waveform */}
-            <div className="flex items-center gap-[4px] flex-1 justify-end">
+            {/* Left waveform — hidden on small screens */}
+            <div className="hidden sm:flex items-center gap-[4px] flex-1 justify-end">
               {[10,16,26,38,28,44,32,48,36,42,28,34,20,14,8].map((h, i) => (
                 <motion.div key={i} className="w-[3px] rounded-full flex-shrink-0"
                   style={{ background: isRecording ? "#3b82f6" : "#cbd5e1" }}
@@ -189,13 +189,13 @@ export default function VoiceRegistration({ onComplete }) {
               )}
               <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
                 onClick={isRecording ? stopRecording : startRecording}
-                className="relative z-10 w-[100px] h-[100px] rounded-full flex items-center justify-center shadow-2xl"
+                className="relative z-10 w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-full flex items-center justify-center shadow-2xl"
                 style={{ background: isRecording ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(145deg,#4f8ef7,#2563eb)" }}>
-                {isRecording ? <Square className="w-10 h-10 text-white" fill="white" /> : <Mic className="w-11 h-11 text-white" />}
+                {isRecording ? <Square className="w-8 h-8 md:w-10 md:h-10 text-white" fill="white" /> : <Mic className="w-9 h-9 md:w-11 md:h-11 text-white" />}
               </motion.button>
             </div>
-            {/* Right waveform */}
-            <div className="flex items-center gap-[4px] flex-1">
+            {/* Right waveform — hidden on small screens */}
+            <div className="hidden sm:flex items-center gap-[4px] flex-1">
               {[8,14,20,34,28,42,36,48,32,44,28,38,26,16,10].map((h, i) => (
                 <motion.div key={i} className="w-[3px] rounded-full flex-shrink-0"
                   style={{ background: isRecording ? "#3b82f6" : "#cbd5e1" }}
@@ -311,9 +311,9 @@ export default function VoiceRegistration({ onComplete }) {
 
         {/* Safety note */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-          className="flex items-center gap-2 mt-4 bg-white border border-blue-100 rounded-full px-4 py-2 shadow-sm flex-shrink-0">
-          <ShieldCheck className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-          <p className="text-xs text-gray-400">Your information is safe with us. We never share your data.</p>
+          className="flex items-center gap-2 mt-4 bg-white border border-blue-100 rounded-full px-3 md:px-4 py-2 shadow-sm flex-shrink-0">
+          <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400 flex-shrink-0" />
+          <p className="text-[10px] md:text-xs text-gray-400">Your information is safe with us. We never share your data.</p>
         </motion.div>
       </div>
     </div>

@@ -8,7 +8,10 @@ export async function POST(request) {
 
     const response = await fetch(`${BACKEND_URL}/api/voice/extract`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       body: JSON.stringify(body),
     });
 

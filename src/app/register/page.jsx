@@ -12,34 +12,231 @@ export default function RegisterPage() {
   const [method, setMethod] = useState(null);
   const [prefillData, setPrefillData] = useState(null);
   const [finalJson, setFinalJson] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleVoiceComplete = (data) => { setPrefillData(data); setMethod("manual"); };
-  const handleFormSubmit = (data) => setFinalJson(data);
-  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); };
+  // Track registration source
+  const [source, setSource] = useState("MANUAL");
+
+  // Voice pipeline data — stored when voice extraction completes
+  const [voicePipelineData, setVoicePipelineData] = useState(null);
+
+  const handleVoiceComplete = (data) => {
+    // data contains: { name, email, phone, hospital, department, _transcript, _entities, _pipelineData, _pipelineSteps, _confidence }
+    setPrefillData(data);
+    setSource("VOICE");
+
+    // Store pipeline data for registration
+    setVoicePipelineData({
+      transcript: data._transcript || null,
+      ner_output: data._entities || null,
+      pipeline_output: data._pipelineData || null,
+      auto_fill: {
+        doctor_name: data.name || null,
+        hospital: data.hospital || null,
+        specialization: data.department || null,
+        phone: data.phone || null,
+        email: data.email || null,
+      },
+    });
+
+    setMethod("manual");
+  };
+
+  const handleFormSubmit = async (data) => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    // Build corrections (compare auto_fill with final form values)
+    let corrections = null;
+    if (source === "VOICE" && voicePipelineData?.auto_fill) {
+      const af = voicePipelineData.auto_fill;
+      const c = {};
+      if (af.doctor_name && af.doctor_name !== data.name) c.doctor_name = { from: af.doctor_name, to: data.name };
+      if (af.hospital && af.hospital !== data.hospital) c.hospital = { from: af.hospital, to: data.hospital };
+      if (af.specialization && af.specialization !== data.department) c.specialization = { from: af.specialization, to: data.department };
+      if (af.phone && af.phone !== data.phone) c.phone = { from: af.phone, to: data.phone };
+      if (af.email && af.email !== data.email) c.email = { from: af.email, to: data.email };
+      if (Object.keys(c).length > 0) corrections = c;
+    }
+
+    // Map form data to backend API schema
+    const payload = {
+      doctor_name: data.name,
+      email: data.email,
+      phone: data.phone,
+      hospital: data.hospital,
+      specialization: data.department,
+      source: source,
+      location: {
+        latitude: data.location?.latitude || "",
+        longitude: data.location?.longitude || "",
+        address: data.location?.address || "",
+        city: data.location?.city || "",
+        state: data.location?.state || "",
+        country: data.location?.country || "",
+      },
+      // Voice pipeline fields (null for MANUAL)
+      transcript: voicePipelineData?.transcript || null,
+      ner_output: voicePipelineData?.ner_output !== undefined ? voicePipelineData.ner_output : null,
+      pipeline_output: voicePipelineData?.pipeline_output || null,
+      auto_fill: voicePipelineData?.auto_fill || null,
+      corrections: corrections,
+    };
+
+    try {
+      const response = await fetch("/api/onboarding/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (response.status === 409) {
+        setSubmitError("A doctor with this phone or email is already registered.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!response.ok) {
+        setSubmitError(result.detail || "Registration failed. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Success — show result
+      setFinalJson(result);
+    } catch (err) {
+      setSubmitError("Could not reach server. Please check your connection.");
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); };
 
   // ── Final JSON ──
   if (finalJson) {
     return (
       <div className="min-h-screen bg-[#eef1fb] flex items-center justify-center px-4 py-8">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl">
-          <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 mb-3">
-                <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="w-full max-w-md text-center"
+        >
+          {/* Animated checkmark */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 12 }}
+            className="mx-auto w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-6"
+          >
+            <motion.svg
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
+              className="w-10 h-10 text-green-500"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
+            >
+              <motion.path
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+                strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"
+              />
+            </motion.svg>
+          </motion.div>
+
+          {/* Title */}
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl font-black text-gray-900 mb-2"
+          >
+            Registration Successful!
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-sm text-gray-400 mb-6"
+          >
+            Welcome to DRX, <span className="font-semibold text-gray-700">{finalJson.doctor_name || "Doctor"}</span>
+          </motion.p>
+
+          {/* Info card */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 text-left"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 3a1 1 0 0 0-1 1v5a5 5 0 0 0 10 0V4a1 1 0 0 0-1-1"/>
+                  <path d="M8 3v3m4-3v3"/>
+                  <path d="M10 14v2a4 4 0 0 0 8 0v-3"/>
+                  <circle cx="18" cy="13" r="1.5" fill="#3b82f6" stroke="none"/>
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Registration Complete</h2>
+              <div>
+                <p className="text-sm font-bold text-gray-900">{finalJson.doctor_name || "Doctor"}</p>
+                <p className="text-[10px] text-gray-400">{finalJson.specialization || ""} • {finalJson.hospital || ""}</p>
+              </div>
             </div>
-            <pre className="bg-gray-900 text-green-400 p-4 md:p-5 rounded-xl overflow-auto text-xs font-mono max-h-64">
-              {JSON.stringify(finalJson, null, 2)}
-            </pre>
-            <div className="flex flex-col sm:flex-row gap-3 mt-5 justify-center">
-              <button onClick={() => navigator.clipboard.writeText(JSON.stringify(finalJson, null, 2))}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Copy JSON</button>
-              <button onClick={handleReset}
-                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">New Registration</button>
+            <div className="grid grid-cols-2 gap-3 text-[11px]">
+              <div>
+                <p className="text-gray-400 font-medium">Status</p>
+                <p className="font-bold text-green-600">{finalJson.status || "ACTIVE"}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 font-medium">Source</p>
+                <p className="font-bold text-blue-600">{finalJson.source || source}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 font-medium">Phone</p>
+                <p className="font-semibold text-gray-700">{finalJson.phone || ""}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 font-medium">Email</p>
+                <p className="font-semibold text-gray-700 truncate">{finalJson.email || ""}</p>
+              </div>
             </div>
+          </motion.div>
+
+          {/* CTA button */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+          >
+            <button onClick={handleReset}
+              className="w-full py-3 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-200/50"
+              style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+              Register Another Doctor
+            </button>
+          </motion.div>
+
+          {/* Confetti-like dots animation */}
+          <div className="relative h-8 mt-4 overflow-hidden">
+            {[...Array(12)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-2 h-2 rounded-full"
+                style={{
+                  left: `${8 + i * 8}%`,
+                  background: ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"][i % 4],
+                }}
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: [30, -10, 30], opacity: [0, 1, 0] }}
+                transition={{ delay: 0.8 + i * 0.08, duration: 1.2, ease: "easeOut" }}
+              />
+            ))}
           </div>
         </motion.div>
       </div>
@@ -71,7 +268,7 @@ export default function RegisterPage() {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
-        <ManualRegistrationForm prefillData={prefillData || undefined} onSubmit={handleFormSubmit} />
+        <ManualRegistrationForm prefillData={prefillData || undefined} onSubmit={handleFormSubmit} submitError={submitError} isSubmitting={isSubmitting} />
       </div>
     );
   }

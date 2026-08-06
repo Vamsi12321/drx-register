@@ -16,6 +16,7 @@ export default function VoiceRegistration({ onComplete }) {
   const [transcript, setTranscript] = useState("");
   const [language, setLanguage] = useState(undefined);
   const [extractedData, setExtractedData] = useState(null);
+  const [entities, setEntities] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -98,6 +99,7 @@ export default function VoiceRegistration({ onComplete }) {
       setStage("extracting");
       const extracted = await voiceApi.extract(transcription.transcript);
       setExtractedData(extracted);
+      setEntities(extracted._entities || null);
       setStage("complete");
       const filled = Object.values(extracted).filter(Boolean).length;
       if (filled >= 4) addToast("success", "Details extracted", `${filled}/5 fields detected.`);
@@ -282,7 +284,24 @@ export default function VoiceRegistration({ onComplete }) {
               className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 bg-white transition-colors">
               <RefreshCw className="w-4 h-4" /> Re-record
             </button>
-            <button onClick={() => onComplete(extractedData)}
+            <button onClick={() => onComplete({
+              name: extractedData.name,
+              email: extractedData.email,
+              phone: extractedData.phone,
+              hospital: extractedData.hospital,
+              department: extractedData.department,
+              _transcript: transcript,
+              _entities: extractedData._entities || entities,
+              _pipelineData: {
+                name: extractedData.name,
+                email: extractedData.email,
+                phone: extractedData.phone,
+                hospital: extractedData.hospital,
+                department: extractedData.department,
+              },
+              _pipelineSteps: extractedData._pipelineSteps || null,
+              _confidence: extractedData._confidence || null,
+            })}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
               Continue to Form <ArrowRight className="w-4 h-4" />
             </button>

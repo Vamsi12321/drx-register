@@ -1,6 +1,5 @@
 /**
  * Voice Registration API Service
- * Backend pipeline: Sarvam STT → Translation → Regex → spaCy NER → Gemini → JSON
  */
 
 export class VoiceServiceError extends Error {
@@ -50,14 +49,21 @@ class VoiceApiService {
       throw new VoiceServiceError(error.detail, response.status);
     }
 
-    const data = await response.json();
-    const extracted = data.data || data;
+    const rawResponse = await response.json();
+    const extracted = rawResponse.data || rawResponse;
+
+    // Return normalized fields + raw response for pipeline storage
     return {
       name: extracted.name || "",
       email: extracted.email || "",
       phone: extracted.phone || "",
       hospital: extracted.hospital || "",
       department: extracted.department || "",
+      // Store raw backend response for registration payload
+      _rawResponse: rawResponse,
+      _entities: rawResponse.entities || null,
+      _confidence: rawResponse.confidence || null,
+      _pipelineSteps: rawResponse.pipeline_steps || null,
     };
   }
 

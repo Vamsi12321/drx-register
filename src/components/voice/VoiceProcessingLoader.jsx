@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Brain, Mic, Sparkles } from "lucide-react";
 
 const stages = [
-  { key: "transcribing", label: "Transcribing audio...", icon: Mic, sublabel: "Sarvam AI processing" },
+  { key: "transcribing", label: "Transcribing audio...", icon: Mic, sublabel: "Processing speech" },
   { key: "extracting", label: "Extracting details...", icon: Brain, sublabel: "AI analyzing transcript" },
   { key: "complete", label: "Done!", icon: Sparkles, sublabel: "Data extracted successfully" },
 ];

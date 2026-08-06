@@ -27,7 +27,7 @@ const iconStyle = {
   color: "#93c5fd", pointerEvents: "none",
 };
 
-export default function ManualRegistrationForm({ prefillData, onSubmit }) {
+export default function ManualRegistrationForm({ prefillData, onSubmit, submitError, isSubmitting: parentSubmitting }) {
   const [locationData, setLocationData] = useState({
     latitude: "", longitude: "", address: "", city: "", state: "", country: "",
   });
@@ -230,15 +230,29 @@ export default function ManualRegistrationForm({ prefillData, onSubmit }) {
 
         {/* Submit */}
         <div className="flex-shrink-0 px-4 md:px-8 py-3 bg-white/80 backdrop-blur border-t border-gray-100">
+          {submitError && (
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-[11px] text-red-600 font-medium text-center">{submitError}</p>
+            </div>
+          )}
           <motion.button
             whileHover={{ scale: 1.005 }} whileTap={{ scale: 0.995 }}
-            type="button" onClick={handleSubmit(handleFormSubmit)} disabled={isSubmitting}
+            type="button" onClick={handleSubmit(handleFormSubmit)} disabled={isSubmitting || parentSubmitting}
             className="w-full py-3 rounded-2xl text-white font-bold text-sm flex flex-col items-center gap-0.5 disabled:opacity-50 shadow-lg shadow-blue-200/50"
             style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
-            <div className="flex items-center gap-2">
-              <Send className="w-4 h-4" /> Review &amp; Continue
-            </div>
-            <span className="text-[9px] font-normal opacity-70">Please review your information before submitting</span>
+            {(isSubmitting || parentSubmitting) ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Submitting...
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Send className="w-4 h-4" /> Review &amp; Continue
+                </div>
+                <span className="text-[9px] font-normal opacity-70">Please review your information before submitting</span>
+              </>
+            )}
           </motion.button>
         </div>
       </div>

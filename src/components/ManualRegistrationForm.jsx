@@ -204,22 +204,44 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-2.5">
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setLocTab("current")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
-                      locTab === "current" ? "bg-blue-600 text-white shadow-sm" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                    }`}>
-                    <Navigation className="w-2.5 h-2.5" /> Use Current Location
-                  </button>
-                  <button type="button" onClick={() => setLocTab("search")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
-                      locTab === "search" ? "bg-gray-800 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    }`}>
-                    <Search className="w-2.5 h-2.5" /> Search Location
-                  </button>
-                </div>
-                {locTab === "current" && <CurrentLocationButton onLocationDetected={handleLocationChange} />}
-                {locTab === "search" && <SearchLocation onLocationSelected={handleLocationChange} />}
+                {/* Show detected address if available */}
+                {locationData.address ? (
+                  <div className="flex items-start gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
+                    <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold text-green-800 leading-tight truncate">
+                        {locationData.address.split(",").slice(0, 2).join(",")}
+                      </p>
+                      <p className="text-[10px] text-green-600 mt-0.5">
+                        {[locationData.city, locationData.state, locationData.country].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                    <button type="button"
+                      onClick={() => { setMapPosition(null); setLocationData({ latitude:"", longitude:"", address:"", city:"", state:"", country:"" }); }}
+                      className="text-[10px] text-green-500 font-bold hover:text-green-700 flex-shrink-0">
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => setLocTab("current")}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
+                          locTab === "current" ? "bg-blue-600 text-white shadow-sm" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                        }`}>
+                        <Navigation className="w-2.5 h-2.5" /> Use Current Location
+                      </button>
+                      <button type="button" onClick={() => setLocTab("search")}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
+                          locTab === "search" ? "bg-gray-800 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}>
+                        <Search className="w-2.5 h-2.5" /> Search Location
+                      </button>
+                    </div>
+                    {locTab === "current" && <CurrentLocationButton onLocationDetected={handleLocationChange} />}
+                    {locTab === "search" && <SearchLocation onLocationSelected={handleLocationChange} />}
+                  </>
+                )}
               </div>
               <div className="h-36 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
                 <LeafletMap position={mapPosition} onPositionChange={handleLocationChange} />

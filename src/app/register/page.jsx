@@ -85,7 +85,7 @@ export default function RegisterPage() {
     };
 
     try {
-      const response = await fetch("/api/onboarding/register", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/onboarding/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

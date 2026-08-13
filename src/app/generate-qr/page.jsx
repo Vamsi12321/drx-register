@@ -10,7 +10,7 @@ export default function GenerateQRPage() {
   const [registrationUrl, setRegistrationUrl] = useState("");
 
   useEffect(() => {
-    setRegistrationUrl(`${window.location.origin}/qr-register`);
+    setRegistrationUrl(`${window.location.origin}${process.env.NEXT_PUBLIC_BASE_PATH || ""}/qr-register`);
   }, []);
 
   return (

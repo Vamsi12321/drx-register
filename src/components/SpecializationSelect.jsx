@@ -24,7 +24,7 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
   const searchRef = useRef(null);
 
   useEffect(() => {
-    fetch("/api/specializations")
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/specializations`)
       .then((r) => r.json())
       .then((d) => setAllSpecs(d.ordered || []))
       .catch(() => setAllSpecs(TOP_6))

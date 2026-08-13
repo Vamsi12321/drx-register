@@ -12,7 +12,7 @@ export class VoiceServiceError extends Error {
 
 class VoiceApiService {
   constructor() {
-    this.baseUrl = "";
+    this.baseUrl = process.env.NEXT_PUBLIC_BASE_PATH || "";
   }
 
   async transcribe(audioBlob) {

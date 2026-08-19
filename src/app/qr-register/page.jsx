@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Zap, Link2, Stethoscope } from "lucide-react";
-import Image from "next/image";
 import NextLink from "next/link";
 
 export default function QRRegisterPage() {
@@ -103,10 +102,9 @@ export default function QRRegisterPage() {
           <span className="absolute top-[12%] right-[15%] text-blue-300 text-2xl select-none hidden md:block">+</span>
           <span className="absolute bottom-[20%] right-[8%] text-blue-300 text-2xl select-none hidden md:block">+</span>
           <div className="relative z-10">
-            <Image src="/images/doctor.png" alt="Doctor"
+            <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/images/doctor.png`} alt="Doctor"
               width={260} height={320}
-              className="object-contain mix-blend-multiply select-none md:w-[320px] lg:w-[380px]"
-              priority />
+              className="object-contain mix-blend-multiply select-none md:w-[320px] lg:w-[380px]" />
           </div>
         </motion.div>
       </div>

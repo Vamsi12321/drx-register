@@ -6,15 +6,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Mail, Phone, Building2, Send,
   ShieldCheck, Zap, BarChart2, ChevronDown,
-  Navigation, Search, MapPin
+  Navigation, Search, MapPin, Key, Eye, EyeOff,
+  RefreshCw, AtSign
 } from "lucide-react";
-import Image from "next/image";
-import { doctorRegistrationSchema } from "@/lib/validation";
+import { doctorRegistrationSchema, generateUsername } from "@/lib/validation";
 import SpecializationSelect from "./SpecializationSelect";
 import SearchLocation from "./SearchLocation";
 import CurrentLocationButton from "./CurrentLocationButton";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
   ssr: false,
@@ -33,12 +33,14 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
   });
   const [mapPosition, setMapPosition] = useState(null);
   const [locTab, setLocTab] = useState("search");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [sameAsPassword, setSameAsPassword] = useState(false);
 
-  // Accordion state — all open by default
-  const [open, setOpen] = useState({ personal: true, professional: true, location: true });
+  const [open, setOpen] = useState({ personal: true, professional: true, account: true, location: true });
   const toggle = (key) => setOpen((p) => ({ ...p, [key]: !p[key] }));
 
-  const { register, control, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const { register, control, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(doctorRegistrationSchema),
     defaultValues: {
       name: prefillData?.name || "",
@@ -46,13 +48,36 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
       phone: prefillData?.phone || "",
       hospital: prefillData?.hospital || "",
       department: prefillData?.department || "",
+      username: prefillData?.name ? generateUsername(prefillData.name) : "",
+      password: "",
+      confirmPassword: "",
       location: locationData,
     },
   });
 
+  const nameValue = watch("name");
+  const usernameValue = watch("username");
+  const passwordValue = watch("password");
+
+  // Sync confirm password when checkbox is checked
+  useEffect(() => {
+    if (sameAsPassword) {
+      setValue("confirmPassword", passwordValue);
+    }
+  }, [sameAsPassword, passwordValue, setValue]);
+
+  const handleGenerateUsername = () => {
+    const generated = generateUsername(nameValue);
+    if (generated) setValue("username", generated);
+  };
+
   const handleLocationChange = (lat, lng, data) => {
     setMapPosition([lat, lng]);
     setLocationData(data);
+  };
+
+  const handleManualLocationChange = (field, value) => {
+    setLocationData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleFormSubmit = (data) => onSubmit({ ...data, location: locationData });
@@ -90,8 +115,8 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
           </div>
 
           <div className="flex-1 flex items-end justify-center">
-            <Image src="/images/dr_register.png" alt="Doctor" width={240} height={280}
-              className="object-contain mix-blend-multiply" priority />
+            <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/images/dr_register.png`} alt="Doctor" width={240} height={280}
+              className="object-contain mix-blend-multiply" />
           </div>
 
           <div className="space-y-3 mt-4">
@@ -138,14 +163,9 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
           onSubmit={handleSubmit(handleFormSubmit)}>
 
           {/* ── Personal Information ── */}
-          <AccordionSection
-            icon={<User className="w-3.5 h-3.5 text-white" />}
-            iconBg="bg-blue-500"
-            title="Personal Information"
-            subtitle="Let's start with your basic details"
-            isOpen={open.personal}
-            onToggle={() => toggle("personal")}
-          >
+          <AccordionSection icon={<User className="w-3.5 h-3.5 text-white" />} iconBg="bg-blue-500"
+            title="Personal Information" subtitle="Let's start with your basic details"
+            isOpen={open.personal} onToggle={() => toggle("personal")}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Label label="Full Name" error={errors.name?.message}>
                 <div className="relative">
@@ -169,14 +189,9 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
           </AccordionSection>
 
           {/* ── Professional Information ── */}
-          <AccordionSection
-            icon={<Building2 className="w-3.5 h-3.5 text-white" />}
-            iconBg="bg-violet-500"
-            title="Professional Information"
-            subtitle="Tell us about your practice"
-            isOpen={open.professional}
-            onToggle={() => toggle("professional")}
-          >
+          <AccordionSection icon={<Building2 className="w-3.5 h-3.5 text-white" />} iconBg="bg-violet-500"
+            title="Professional Information" subtitle="Tell us about your practice"
+            isOpen={open.professional} onToggle={() => toggle("professional")}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Label label="Hospital / Clinic" error={errors.hospital?.message}>
                 <div className="relative">
@@ -193,18 +208,82 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             </div>
           </AccordionSection>
 
+          {/* ── Account Setup ── */}
+          <AccordionSection icon={<Key className="w-3.5 h-3.5 text-white" />} iconBg="bg-amber-500"
+            title="Account Setup" subtitle="Set up your DRX login credentials"
+            isOpen={open.account} onToggle={() => toggle("account")}>
+
+            {/* Username */}
+            <div className="mb-3">
+              <Label label="Username" error={errors.username?.message}>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <AtSign style={iconStyle} />
+                    <input type="text" placeholder="rahul_sharma" {...register("username")} className={inp(errors.username)} />
+                  </div>
+                  <button type="button" onClick={handleGenerateUsername}
+                    disabled={!nameValue}
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-semibold bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0">
+                    <RefreshCw className="w-3 h-3" /> Generate
+                  </button>
+                </div>
+              </Label>
+              {usernameValue && !errors.username && (
+                <p className="text-[10px] text-green-600 mt-1">Your login will be: <span className="font-bold">{usernameValue}</span></p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Label label="Password" error={errors.password?.message}>
+                <div className="relative">
+                  <Key style={iconStyle} />
+                  <input type={showPassword ? "text" : "password"} placeholder="Min 8 chars, Aa1@" {...register("password")}
+                    className={`${inp(errors.password)} pr-9`} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                  </button>
+                </div>
+              </Label>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#6b7280" }}>Confirm Password</label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={sameAsPassword}
+                      onChange={(e) => setSameAsPassword(e.target.checked)}
+                      className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span className="text-[9px] text-gray-400">Same as password</span>
+                  </label>
+                </div>
+                <div className="relative">
+                  <Key style={iconStyle} />
+                  <input type={showConfirm ? "text" : "password"} placeholder="Re-enter password"
+                    {...register("confirmPassword")}
+                    disabled={sameAsPassword}
+                    className={`${inp(errors.confirmPassword)} pr-9 ${sameAsPassword ? "opacity-60 cursor-not-allowed" : ""}`} />
+                  {!sameAsPassword && (
+                    <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showConfirm ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                    </button>
+                  )}
+                </div>
+                {errors.confirmPassword && <p style={{ fontSize: "9px", color: "#ef4444", marginTop: 4 }}>{errors.confirmPassword.message}</p>}
+              </div>
+            </div>
+
+            <p className="text-[9px] text-gray-400 mt-2">
+              Password must be 8-64 characters with at least one uppercase, one lowercase, one number, and one symbol.
+            </p>
+          </AccordionSection>
+
           {/* ── Location Information ── */}
-          <AccordionSection
-            icon={<MapPin className="w-3.5 h-3.5 text-white" />}
-            iconBg="bg-emerald-500"
-            title="Location Information"
-            subtitle="Where is your practice located?"
-            isOpen={open.location}
-            onToggle={() => toggle("location")}
-          >
+          <AccordionSection icon={<MapPin className="w-3.5 h-3.5 text-white" />} iconBg="bg-emerald-500"
+            title="Practice Location" subtitle="Where is your hospital/clinic/polyclinic located?"
+            isOpen={open.location} onToggle={() => toggle("location")}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-2.5">
-                {/* Show detected address if available */}
                 {locationData.address ? (
                   <div className="flex items-start gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
                     <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -237,15 +316,57 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
                         }`}>
                         <Search className="w-2.5 h-2.5" /> Search Location
                       </button>
+                      <button type="button" onClick={() => setLocTab("manual")}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
+                          locTab === "manual" ? "bg-gray-800 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}>
+                        <MapPin className="w-2.5 h-2.5" /> Enter Manually
+                      </button>
                     </div>
                     {locTab === "current" && <CurrentLocationButton onLocationDetected={handleLocationChange} />}
                     {locTab === "search" && <SearchLocation onLocationSelected={handleLocationChange} />}
+                    {locTab === "manual" && (
+                      <div className="grid grid-cols-1 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Address</label>
+                          <input type="text" placeholder="Apollo Hospital, Jubilee Hills"
+                            value={locationData.address}
+                            onChange={(e) => handleManualLocationChange("address", e.target.value)}
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">City</label>
+                            <input type="text" placeholder="Hyderabad"
+                              value={locationData.city}
+                              onChange={(e) => handleManualLocationChange("city", e.target.value)}
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">State</label>
+                            <input type="text" placeholder="Telangana"
+                              value={locationData.state}
+                              onChange={(e) => handleManualLocationChange("state", e.target.value)}
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Country</label>
+                            <input type="text" placeholder="India"
+                              value={locationData.country}
+                              onChange={(e) => handleManualLocationChange("country", e.target.value)}
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
-              <div className="h-36 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                <LeafletMap position={mapPosition} onPositionChange={handleLocationChange} />
-              </div>
+              {locTab !== "manual" && (
+                <div className="h-36 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+                  <LeafletMap position={mapPosition} onPositionChange={handleLocationChange} />
+                </div>
+              )}
             </div>
           </AccordionSection>
         </form>
@@ -265,14 +386,14 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             {(isSubmitting || parentSubmitting) ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Submitting...
+                Registering...
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4" /> Review &amp; Continue
+                  <Send className="w-4 h-4" /> Complete Registration
                 </div>
-                <span className="text-[9px] font-normal opacity-70">Please review your information before submitting</span>
+                <span className="text-[9px] font-normal opacity-70">Your account will be created</span>
               </>
             )}
           </motion.button>
@@ -282,48 +403,27 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
   );
 }
 
-// ── Accordion Section ──
 function AccordionSection({ icon, iconBg, title, subtitle, isOpen, onToggle, children }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      {/* Header — clickable */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
-      >
+      <button type="button" onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
         <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center shadow-sm`}>
-            {icon}
-          </div>
+          <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center shadow-sm`}>{icon}</div>
           <div className="text-left">
             <p className="text-sm font-bold text-gray-800 leading-none">{title}</p>
             <p className="text-[10px] text-gray-400 mt-0.5">{subtitle}</p>
           </div>
         </div>
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-          className="flex-shrink-0"
-        >
+        <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.25 }} className="flex-shrink-0">
           <ChevronDown className="w-4 h-4 text-gray-400" />
         </motion.div>
       </button>
-
-      {/* Animated content */}
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div
-            key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="px-4 py-4">
-              {children}
-            </div>
+          <motion.div key="content" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} style={{ overflow: "hidden" }}>
+            <div className="px-4 py-4">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -334,9 +434,7 @@ function AccordionSection({ icon, iconBg, title, subtitle, isOpen, onToggle, chi
 function Label({ label, error, children }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#6b7280", marginBottom: 6, letterSpacing: "0.01em" }}>
-        {label}
-      </label>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>{label}</label>
       {children}
       {error && <p style={{ fontSize: "9px", color: "#ef4444", marginTop: 4 }}>{error}</p>}
     </div>

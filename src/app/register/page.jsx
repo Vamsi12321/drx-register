@@ -4,7 +4,6 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Zap, ShieldCheck, Star, User, Lock } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { VoiceRegistration } from "@/components/voice";
 import ManualRegistrationForm from "@/components/ManualRegistrationForm";
 
@@ -14,6 +13,7 @@ export default function RegisterPage() {
   const [finalJson, setFinalJson] = useState(null);
   const [submitError, setSubmitError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reviewData, setReviewData] = useState(null); // holds form data for review screen
 
   // Track registration source
   const [source, setSource] = useState("MANUAL");
@@ -43,11 +43,19 @@ export default function RegisterPage() {
     setMethod("manual");
   };
 
-  const handleFormSubmit = async (data) => {
+  // Form submit → goes to review screen (no API call yet)
+  const handleFormReview = (data) => {
+    setReviewData(data);
+  };
+
+  // Confirm from review → calls APIs
+  const handleConfirmSubmit = async () => {
+    if (!reviewData) return;
+    const data = reviewData;
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // Build corrections (compare auto_fill with final form values)
+    // Build corrections
     let corrections = null;
     if (source === "VOICE" && voicePipelineData?.auto_fill) {
       const af = voicePipelineData.auto_fill;
@@ -60,61 +68,188 @@ export default function RegisterPage() {
       if (Object.keys(c).length > 0) corrections = c;
     }
 
-    // Map form data to backend API schema
-    const payload = {
-      doctor_name: data.name,
-      email: data.email,
-      phone: data.phone,
-      hospital: data.hospital,
-      specialization: data.department,
-      source: source,
-      location: {
-        latitude: data.location?.latitude || "",
-        longitude: data.location?.longitude || "",
-        address: data.location?.address || "",
-        city: data.location?.city || "",
-        state: data.location?.state || "",
-        country: data.location?.country || "",
-      },
-      // Voice pipeline fields (null for MANUAL)
-      transcript: voicePipelineData?.transcript || null,
-      ner_output: voicePipelineData?.ner_output !== undefined ? voicePipelineData.ner_output : null,
-      pipeline_output: voicePipelineData?.pipeline_output || null,
-      auto_fill: voicePipelineData?.auto_fill || null,
-      corrections: corrections,
-    };
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/onboarding/register`, {
+      // ── Step 1: Create Proxzar OAuth user ──
+      console.log(`[DOBO] Step 1: Creating OAuth user for: ${data.username}`);
+
+      const oauthPayload = {
+        UserName: data.username,
+        UserPassword: data.password,
+        UserFullName: data.name,
+        UserEmail: data.email,
+        UserPhone: `+91${data.phone}`,
+        DataSource: "DOBO",
+      };
+
+      const oauthRes = await fetch(`${basePath}/api/auth/addUser`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(oauthPayload),
       });
 
-      const result = await response.json();
+      if (!oauthRes.ok) {
+        const oauthErr = await oauthRes.json().catch(() => ({}));
+        console.log(`[DOBO] Step 1: ✗ OAuth failed (${oauthRes.status}):`, JSON.stringify(oauthErr));
 
-      if (response.status === 409) {
-        setSubmitError("A doctor with this phone or email is already registered.");
+        // User-friendly error messages
+        if (oauthErr.detail === "Error adding new user.") {
+          setSubmitError("An account with this username or email already exists. Please try a different username.");
+        } else if (oauthRes.status === 422) {
+          setSubmitError("Invalid data. Please check your username and password format.");
+        } else if (oauthRes.status === 503) {
+          setSubmitError("Service temporarily unavailable. Please try again in a moment.");
+        } else {
+          setSubmitError("Unable to create your account. Please try again.");
+        }
         setIsSubmitting(false);
         return;
       }
 
-      if (!response.ok) {
-        setSubmitError(result.detail || "Registration failed. Please try again.");
+      console.log(`[DOBO] Step 1: ✓ OAuth user created for: ${data.username}`);
+
+      // ── Step 2: Register with DRX backend ──
+      console.log(`[DOBO] Step 2: Registering with DRX...`);
+
+      const drxPayload = {
+        doctor_name: data.name,
+        email: data.email,
+        phone: `+91${data.phone}`,
+        hospital: data.hospital,
+        specialization: data.department,
+        username: data.username,
+        password: data.password,
+        source: source,
+        location: {
+          latitude: data.location?.latitude || "",
+          longitude: data.location?.longitude || "",
+          address: data.location?.address || "",
+          city: data.location?.city || "",
+          state: data.location?.state || "",
+          country: data.location?.country || "",
+        },
+        transcript: voicePipelineData?.transcript || null,
+        ner_output: voicePipelineData?.ner_output !== undefined ? voicePipelineData.ner_output : null,
+        pipeline_output: voicePipelineData?.pipeline_output || null,
+        auto_fill: voicePipelineData?.auto_fill || null,
+        corrections: corrections,
+      };
+
+      const drxRes = await fetch(`${basePath}/api/onboarding/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(drxPayload),
+      });
+
+      const drxResult = await drxRes.json();
+
+      if (drxRes.status === 409) {
+        console.log(`[DOBO] Step 2: ✗ Duplicate doctor`);
+        setSubmitError("A doctor with this phone number or email is already registered on DRX. Please use different credentials.");
         setIsSubmitting(false);
         return;
       }
 
-      // Success — show result
-      setFinalJson(result);
+      if (!drxRes.ok) {
+        console.log(`[DOBO] Step 2: ✗ DRX failed (${drxRes.status}):`, JSON.stringify(drxResult));
+        if (drxRes.status === 422) {
+          setSubmitError("Some of your details are invalid. Please go back and check all fields.");
+        } else if (drxRes.status === 503) {
+          setSubmitError("Registration service temporarily unavailable. Please try again in a moment.");
+        } else {
+          setSubmitError("Registration could not be completed. Please try again.");
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log(`[DOBO] Step 2: ✓ DRX registration complete (id: ${drxResult.onboarding_id || ""})`);
+
+      // ── Both succeeded ──
+      setFinalJson(drxResult);
     } catch (err) {
-      setSubmitError("Could not reach server. Please check your connection.");
+      console.error(`[DOBO] Registration error:`, err?.message || err);
+      setSubmitError("Unable to connect to the server. Please check your internet connection and try again.");
     }
 
     setIsSubmitting(false);
   };
 
-  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); };
+  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); setReviewData(null); };
+
+  // ── Review & Confirm Screen ──
+  if (reviewData && !finalJson) {
+    return (
+      <div className="min-h-screen bg-[#eef1fb] px-4 py-8">
+        <div className="max-w-xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50">
+              <h2 className="text-lg font-black text-gray-900">Review Your Details</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">Please confirm your information before registering</p>
+            </div>
+
+            {/* Details */}
+            <div className="px-6 py-4 space-y-3">
+              <ReviewRow label="Full Name" value={reviewData.name} />
+              <ReviewRow label="Email" value={reviewData.email} />
+              <ReviewRow label="Phone" value={reviewData.phone} />
+              <ReviewRow label="Hospital / Clinic" value={reviewData.hospital} />
+              <ReviewRow label="Specialization" value={reviewData.department} />
+              <ReviewRow label="Username" value={reviewData.username} />
+              <ReviewRow label="Password" value="••••••••" />
+              {reviewData.location?.city && (
+                <ReviewRow label="Practice Location"
+                  value={[reviewData.location.address, reviewData.location.city, reviewData.location.state, reviewData.location.country].filter(Boolean).join(", ")} />
+              )}
+              <ReviewRow label="Registration Source" value={source} />
+            </div>
+
+            {/* Error */}
+            {submitError && (
+              <div className="mx-6 mb-3 p-3 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[12px] font-bold text-red-700">Registration Error</p>
+                  <p className="text-[11px] text-red-600 mt-0.5">{submitError}</p>
+                </div>
+                <button type="button" onClick={() => setSubmitError(null)} className="text-red-300 hover:text-red-500 flex-shrink-0">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button type="button" onClick={() => { setPrefillData(reviewData); setReviewData(null); }}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                ← Edit
+              </button>
+              <button type="button" onClick={handleConfirmSubmit} disabled={isSubmitting}
+                className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm shadow-lg disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Registering...
+                  </span>
+                ) : "Confirm & Register"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Final JSON ──
   if (finalJson) {
@@ -268,7 +403,7 @@ export default function RegisterPage() {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         </div>
-        <ManualRegistrationForm prefillData={prefillData || undefined} onSubmit={handleFormSubmit} submitError={submitError} isSubmitting={isSubmitting} />
+        <ManualRegistrationForm prefillData={prefillData || undefined} onSubmit={handleFormReview} submitError={submitError} isSubmitting={isSubmitting} />
       </div>
     );
   }
@@ -364,7 +499,7 @@ export default function RegisterPage() {
             className="flex rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all border border-gray-100 h-[100px] md:h-[130px]">
             <div className="w-28 md:w-40 flex-shrink-0 bg-[#eef2ff] flex items-center justify-center relative overflow-hidden">
               <div className="absolute w-20 h-20 rounded-full bg-blue-200/40 -bottom-8 -left-8" />
-              <Image src="/images/notepad.png" alt="Manual Registration" width={80} height={90}
+              <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/images/notepad.png`} alt="Manual Registration" width={80} height={90}
                 className="relative z-10 object-contain mix-blend-multiply md:w-[100px] md:h-[110px]" />
             </div>
             <div className="flex-1 bg-white px-3 md:px-5 flex items-center gap-2 md:gap-3">
@@ -399,6 +534,15 @@ export default function RegisterPage() {
         <div className="absolute w-48 h-48 rounded-full bg-blue-200/30" style={{ bottom: -60, left: -60 }} />
         <div className="absolute w-28 h-28 rounded-full bg-indigo-200/40" style={{ bottom: 10, left: 40 }} />
       </div>
+    </div>
+  );
+}
+
+function ReviewRow({ label, value }) {
+  return (
+    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-b-0">
+      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide w-32 flex-shrink-0">{label}</span>
+      <span className="text-[12px] text-gray-800 font-medium text-right flex-1 break-words">{value || "—"}</span>
     </div>
   );
 }

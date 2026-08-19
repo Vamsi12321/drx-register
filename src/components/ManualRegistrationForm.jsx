@@ -9,7 +9,7 @@ import {
   Navigation, Search, MapPin, Key, Eye, EyeOff,
   RefreshCw, AtSign
 } from "lucide-react";
-import { doctorRegistrationSchema, generateUsername } from "@/lib/validation";
+import { doctorRegistrationSchema, generateUsername, generatePassword } from "@/lib/validation";
 import SpecializationSelect from "./SpecializationSelect";
 import SearchLocation from "./SearchLocation";
 import CurrentLocationButton from "./CurrentLocationButton";
@@ -59,16 +59,36 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
   const usernameValue = watch("username");
   const passwordValue = watch("password");
 
+  // Auto-generate username and password when name changes
+  useEffect(() => {
+    if (nameValue && nameValue.trim().length >= 2) {
+      const generated = generateUsername(nameValue);
+      if (generated) {
+        setValue("username", generated);
+        const pwd = generatePassword(generated);
+        setValue("password", pwd);
+        setValue("confirmPassword", pwd);
+      }
+    }
+  }, [nameValue, setValue]);
+
   // Sync confirm password when checkbox is checked
   useEffect(() => {
     if (sameAsPassword) {
       setValue("confirmPassword", passwordValue);
     }
-  }, [sameAsPassword, passwordValue, setValue]);
+  }, [sameAsPassword, setValue]);
 
   const handleGenerateUsername = () => {
     const generated = generateUsername(nameValue);
-    if (generated) setValue("username", generated);
+    if (generated) {
+      setValue("username", generated);
+      const pwd = generatePassword(generated);
+      setValue("password", pwd);
+      if (sameAsPassword) {
+        setValue("confirmPassword", pwd);
+      }
+    }
   };
 
   const handleLocationChange = (lat, lng, data) => {
@@ -276,6 +296,23 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             <p className="text-[9px] text-gray-400 mt-2">
               Password must be 8-64 characters with at least one uppercase, one lowercase, one number, and one symbol.
             </p>
+
+            {usernameValue && passwordValue && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-[11px] font-bold text-amber-800 flex items-center gap-1.5 mb-1">
+                  <Key className="w-3.5 h-3.5" /> Remember your DRX login credentials
+                </p>
+                <div className="space-y-1">
+                  <p className="text-[11px] text-amber-700">
+                    <span className="font-semibold">Username:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-100">{usernameValue}</span>
+                  </p>
+                  <p className="text-[11px] text-amber-700">
+                    <span className="font-semibold">Password:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-100">{passwordValue}</span>
+                  </p>
+                </div>
+                <p className="text-[9px] text-amber-500 mt-1.5">Please save these credentials. You will need them to log in to DRX.</p>
+              </div>
+            )}
           </AccordionSection>
 
           {/* ── Location Information ── */}

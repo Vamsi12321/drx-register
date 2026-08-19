@@ -64,28 +64,37 @@ function DraggableMarker({ position, onPositionChange }) {
 
 export default function LeafletMap({ position, onPositionChange }) {
   const defaultCenter = [17.385, 78.4867];
-  const [mapReady, setMapReady] = useState(false);
-  const mapContainerRef = useRef(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const mapRef = useRef(null);
 
   useEffect(() => {
-    if (mapContainerRef.current && mapContainerRef.current._leaflet_id) {
-      delete mapContainerRef.current._leaflet_id;
-    }
-    setMapReady(true);
-    return () => setMapReady(false);
+    setIsMounted(true);
+    return () => {
+      // On unmount, remove the map instance to prevent "already initialized" on remount
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, []);
 
-  if (!mapReady) return <div ref={mapContainerRef} className="h-full w-full bg-gray-100" />;
+  if (!isMounted) {
+    return <div className="h-full w-full bg-gray-100 rounded-xl animate-pulse" />;
+  }
 
   return (
-    <div ref={mapContainerRef} className="h-full w-full">
-      <MapContainer center={position || defaultCenter} zoom={position ? 15 : 5} scrollWheelZoom={true} className="h-full w-full">
-        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <MapUpdater position={position} />
-        <MapClickHandler onPositionChange={onPositionChange} />
-        {position && <DraggableMarker position={position} onPositionChange={onPositionChange} />}
-      </MapContainer>
-    </div>
+    <MapContainer
+      center={position || defaultCenter}
+      zoom={position ? 15 : 5}
+      scrollWheelZoom={true}
+      className="h-full w-full"
+      ref={mapRef}
+    >
+      <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <MapUpdater position={position} />
+      <MapClickHandler onPositionChange={onPositionChange} />
+      {position && <DraggableMarker position={position} onPositionChange={onPositionChange} />}
+    </MapContainer>
   );
 }

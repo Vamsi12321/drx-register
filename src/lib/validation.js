@@ -33,8 +33,8 @@ export const doctorRegistrationSchema = z.object({
 
 /**
  * Generate username from full name
- * "Dr Vamshi Wakad" → "vamshi_wakad"
- * "Dr. Rahul Sharma" → "rahul_sharma"
+ * "Dr Vamshi Wakad" → "vamshi_wakad_123"
+ * "Dr. Rahul Sharma" → "rahul_sharma_123"
  */
 export function generateUsername(fullName) {
   if (!fullName) return "";
@@ -45,5 +45,16 @@ export function generateUsername(fullName) {
   name = name.replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
   // Remove trailing/leading underscores
   name = name.replace(/^_+|_+$/g, "");
-  return name || "";
+  if (!name) return "";
+  // Append random 3-digit number
+  const randomNum = Math.floor(100 + Math.random() * 900);
+  return `${name}_${randomNum}`;
+}
+
+/**
+ * Generate password from username: username@123
+ */
+export function generatePassword(username) {
+  if (!username) return "";
+  return `${username}@123`;
 }

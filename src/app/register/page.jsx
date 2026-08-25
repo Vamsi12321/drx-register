@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Zap, ShieldCheck, Star, User, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Zap, ShieldCheck, Star, User, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { VoiceRegistration } from "@/components/voice";
 import ManualRegistrationForm from "@/components/ManualRegistrationForm";
@@ -13,7 +13,12 @@ export default function RegisterPage() {
   const [finalJson, setFinalJson] = useState(null);
   const [submitError, setSubmitError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reviewData, setReviewData] = useState(null); // holds form data for review screen
+  const [reviewData, setReviewData] = useState(null);
+  const [otpScreen, setOtpScreen] = useState(false); // show OTP input
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState(null);
+  const [otpSuccess, setOtpSuccess] = useState(null); // "OTP sent" message
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   // Track registration source
   const [source, setSource] = useState("MANUAL");
@@ -48,31 +53,18 @@ export default function RegisterPage() {
     setReviewData(data);
   };
 
-  // Confirm from review → calls APIs
+  // Confirm from review → calls Proxzar register, then shows OTP
   const handleConfirmSubmit = async () => {
     if (!reviewData) return;
     const data = reviewData;
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // Build corrections
-    let corrections = null;
-    if (source === "VOICE" && voicePipelineData?.auto_fill) {
-      const af = voicePipelineData.auto_fill;
-      const c = {};
-      if (af.doctor_name && af.doctor_name !== data.name) c.doctor_name = { from: af.doctor_name, to: data.name };
-      if (af.hospital && af.hospital !== data.hospital) c.hospital = { from: af.hospital, to: data.hospital };
-      if (af.specialization && af.specialization !== data.department) c.specialization = { from: af.specialization, to: data.department };
-      if (af.phone && af.phone !== data.phone) c.phone = { from: af.phone, to: data.phone };
-      if (af.email && af.email !== data.email) c.email = { from: af.email, to: data.email };
-      if (Object.keys(c).length > 0) corrections = c;
-    }
-
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
     try {
-      // ── Step 1: Create Proxzar OAuth user ──
-      console.log(`[DOBO] Step 1: Creating OAuth user for: ${data.username}`);
+      // ── Step 1: Register with Proxzar (temporary, sends OTP) ──
+      console.log(`[DOBO] Step 1: Registering OAuth user: ${data.username}`);
 
       const oauthPayload = {
         UserName: data.username,
@@ -81,6 +73,9 @@ export default function RegisterPage() {
         UserEmail: data.email,
         UserPhone: `+91${data.phone}`,
         DataSource: "DOBO",
+        EmailVerified: false,
+        PhoneVerified: false,
+        CallbackUrl: "https://drx.proxzar.ai/dobo",
       };
 
       const oauthRes = await fetch(`${basePath}/api/auth/addUser`, {
@@ -91,9 +86,8 @@ export default function RegisterPage() {
 
       if (!oauthRes.ok) {
         const oauthErr = await oauthRes.json().catch(() => ({}));
-        console.log(`[DOBO] Step 1: ✗ OAuth failed (${oauthRes.status}):`, JSON.stringify(oauthErr));
+        console.log(`[DOBO] Step 1: ✗ OAuth register failed (${oauthRes.status}):`, JSON.stringify(oauthErr));
 
-        // User-friendly error messages
         if (oauthErr.detail === "Error adding new user.") {
           setSubmitError("An account with this username or email already exists. Please try a different username.");
         } else if (oauthRes.status === 422) {
@@ -107,10 +101,74 @@ export default function RegisterPage() {
         return;
       }
 
-      console.log(`[DOBO] Step 1: ✓ OAuth user created for: ${data.username}`);
+      console.log(`[DOBO] Step 1: ✓ OAuth registered, OTP sent to: ${data.email}`);
 
-      // ── Step 2: Register with DRX backend ──
-      console.log(`[DOBO] Step 2: Registering with DRX...`);
+      // Show OTP screen
+      setIsSubmitting(false);
+      setOtpScreen(true);
+      setOtpSuccess("OTP sent successfully to your email.");
+      setOtpError(null);
+
+    } catch (err) {
+      console.error(`[DOBO] Registration error:`, err?.message || err);
+      setSubmitError("Unable to connect to the server. Please check your internet connection and try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  // Verify OTP → then call DRX → then redirect
+  const handleVerifyOtp = async () => {
+    if (!otp.trim() || otp.length < 4) {
+      setOtpError("Please enter a valid OTP.");
+      return;
+    }
+
+    const data = reviewData;
+    setVerifyingOtp(true);
+    setOtpError(null);
+
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+    try {
+      // ── Step 2: Verify email OTP ──
+      console.log(`[DOBO] Step 2: Verifying OTP for: ${data.email}`);
+
+      const verifyRes = await fetch(`${basePath}/api/auth/verifyOTP`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ UserEmail: data.email, OTP: otp }),
+      });
+
+      if (!verifyRes.ok) {
+        const verifyErr = await verifyRes.json().catch(() => ({}));
+        console.log(`[DOBO] Step 2: ✗ OTP verification failed (${verifyRes.status}):`, JSON.stringify(verifyErr));
+
+        if (verifyRes.status === 422) {
+          setOtpError("Invalid OTP. Please check and try again.");
+        } else {
+          setOtpError(verifyErr.detail || "OTP verification failed. Please try again.");
+        }
+        setVerifyingOtp(false);
+        return;
+      }
+
+      console.log(`[DOBO] Step 2: ✓ OTP verified for: ${data.email}`);
+
+      // ── Step 3: Register with DRX backend ──
+      console.log(`[DOBO] Step 3: Registering with DRX...`);
+
+      // Build corrections
+      let corrections = null;
+      if (source === "VOICE" && voicePipelineData?.auto_fill) {
+        const af = voicePipelineData.auto_fill;
+        const c = {};
+        if (af.doctor_name && af.doctor_name !== data.name) c.doctor_name = { from: af.doctor_name, to: data.name };
+        if (af.hospital && af.hospital !== data.hospital) c.hospital = { from: af.hospital, to: data.hospital };
+        if (af.specialization && af.specialization !== data.department) c.specialization = { from: af.specialization, to: data.department };
+        if (af.phone && af.phone !== data.phone) c.phone = { from: af.phone, to: data.phone };
+        if (af.email && af.email !== data.email) c.email = { from: af.email, to: data.email };
+        if (Object.keys(c).length > 0) corrections = c;
+      }
 
       const drxPayload = {
         doctor_name: data.name,
@@ -145,38 +203,125 @@ export default function RegisterPage() {
       const drxResult = await drxRes.json();
 
       if (drxRes.status === 409) {
-        console.log(`[DOBO] Step 2: ✗ Duplicate doctor`);
-        setSubmitError("A doctor with this phone number or email is already registered on DRX. Please use different credentials.");
-        setIsSubmitting(false);
+        console.log(`[DOBO] Step 3: ✗ Duplicate doctor`);
+        setOtpError("A doctor with this phone number or email is already registered.");
+        setVerifyingOtp(false);
         return;
       }
 
       if (!drxRes.ok) {
-        console.log(`[DOBO] Step 2: ✗ DRX failed (${drxRes.status}):`, JSON.stringify(drxResult));
-        if (drxRes.status === 422) {
-          setSubmitError("Some of your details are invalid. Please go back and check all fields.");
-        } else if (drxRes.status === 503) {
-          setSubmitError("Registration service temporarily unavailable. Please try again in a moment.");
-        } else {
-          setSubmitError("Registration could not be completed. Please try again.");
-        }
-        setIsSubmitting(false);
+        console.log(`[DOBO] Step 3: ✗ DRX failed (${drxRes.status}):`, JSON.stringify(drxResult));
+        setOtpError("Registration could not be completed. Please try again.");
+        setVerifyingOtp(false);
         return;
       }
 
-      console.log(`[DOBO] Step 2: ✓ DRX registration complete (id: ${drxResult.onboarding_id || ""})`);
+      console.log(`[DOBO] Step 3: ✓ DRX registration complete (id: ${drxResult.onboarding_id || ""})`);
 
-      // ── Both succeeded ──
+      // ── All done → show success then redirect ──
+      setVerifyingOtp(false);
+      setOtpScreen(false);
       setFinalJson(drxResult);
-    } catch (err) {
-      console.error(`[DOBO] Registration error:`, err?.message || err);
-      setSubmitError("Unable to connect to the server. Please check your internet connection and try again.");
-    }
 
-    setIsSubmitting(false);
+      // Redirect after 2 seconds
+      setTimeout(() => {
+        window.location.href = "https://drx.proxzar.ai/drx";
+      }, 2500);
+
+    } catch (err) {
+      console.error(`[DOBO] Verification/Registration error:`, err?.message || err);
+      setOtpError("Unable to connect to the server. Please check your internet connection.");
+      setVerifyingOtp(false);
+    }
   };
 
-  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); setReviewData(null); };
+  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); setReviewData(null); setOtpScreen(false); setOtp(""); setOtpError(null); setOtpSuccess(null); };
+
+  // ── OTP Verification Screen ──
+  if (otpScreen && reviewData) {
+    return (
+      <div className="min-h-screen bg-[#eef1fb] flex items-center justify-center px-4 py-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-sm">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 py-5 text-center border-b border-gray-100">
+              <div className="inline-flex w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 items-center justify-center mb-3">
+                <Mail className="w-6 h-6 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900">Verify Your Email</h2>
+              <p className="text-[11px] text-gray-400 mt-1">
+                We&apos;ve sent a verification code to
+              </p>
+              <p className="text-[12px] font-semibold text-blue-600">{reviewData.email}</p>
+            </div>
+
+            {/* OTP Input */}
+            <div className="px-6 py-5">
+              <label className="block text-[11px] font-semibold text-gray-500 mb-2">Enter OTP</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 6)); setOtpError(null); }}
+                placeholder="Enter 6-digit code"
+                maxLength={6}
+                className="w-full px-4 py-3 text-center text-lg font-bold tracking-[0.3em] rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                autoFocus
+              />
+
+              {/* Success message */}
+              {otpSuccess && (
+                <div className="mt-3 p-2.5 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <p className="text-[11px] text-green-600">{otpSuccess}</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {otpError && (
+                <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                  <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-[11px] text-red-600">{otpError}</p>
+                </div>
+              )}
+
+              {/* Verify button */}
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={verifyingOtp || otp.length < 4}
+                className="w-full mt-4 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 shadow-lg shadow-blue-200/50"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
+              >
+                {verifyingOtp ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Verifying...
+                  </span>
+                ) : "Verify & Complete Registration"}
+              </button>
+
+              {/* Resend */}
+              <div className="mt-4 text-center">
+                <p className="text-[10px] text-gray-400">
+                  Didn&apos;t receive the code?{" "}
+                  <button type="button" onClick={() => { setOtpSuccess(null); setOtpError(null); setOtp(""); handleConfirmSubmit(); }}
+                    className="text-blue-600 font-semibold hover:underline">
+                    Resend OTP
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   // ── Review & Confirm Screen ──
   if (reviewData && !finalJson) {
@@ -230,7 +375,7 @@ export default function RegisterPage() {
 
             {/* Actions */}
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-              <button type="button" onClick={() => { setPrefillData(reviewData); setReviewData(null); }}
+              <button type="button" onClick={() => { setPrefillData(reviewData); setReviewData(null); setSubmitError(null); }}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                 ← Edit
               </button>
@@ -259,7 +404,7 @@ export default function RegisterPage() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="w-full max-w-md text-center"
+          className="w-full max-w-sm text-center"
         >
           {/* Animated checkmark */}
           <motion.div
@@ -269,26 +414,22 @@ export default function RegisterPage() {
             className="mx-auto w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-6"
           >
             <motion.svg
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
               className="w-10 h-10 text-green-500"
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
             >
               <motion.path
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
                 strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"
               />
             </motion.svg>
           </motion.div>
 
-          {/* Title */}
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.5 }}
             className="text-2xl font-black text-gray-900 mb-2"
           >
             Registration Successful!
@@ -297,82 +438,28 @@ export default function RegisterPage() {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-sm text-gray-400 mb-6"
+            transition={{ delay: 0.7 }}
+            className="text-sm text-gray-500 mb-6"
           >
-            Welcome to DRX, <span className="font-semibold text-gray-700">{finalJson.doctor_name || "Doctor"}</span>
+            Redirecting to your DRX portal...
           </motion.p>
 
-          {/* Info card */}
+          {/* Loading dots animation */}
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 text-left"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="flex items-center justify-center gap-1.5"
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 3a1 1 0 0 0-1 1v5a5 5 0 0 0 10 0V4a1 1 0 0 0-1-1"/>
-                  <path d="M8 3v3m4-3v3"/>
-                  <path d="M10 14v2a4 4 0 0 0 8 0v-3"/>
-                  <circle cx="18" cy="13" r="1.5" fill="#3b82f6" stroke="none"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-900">{finalJson.doctor_name || "Doctor"}</p>
-                <p className="text-[10px] text-gray-400">{finalJson.specialization || ""} • {finalJson.hospital || ""}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-[11px]">
-              <div>
-                <p className="text-gray-400 font-medium">Status</p>
-                <p className="font-bold text-green-600">{finalJson.status || "ACTIVE"}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-medium">Source</p>
-                <p className="font-bold text-blue-600">{finalJson.source || source}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-medium">Phone</p>
-                <p className="font-semibold text-gray-700">{finalJson.phone || ""}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 font-medium">Email</p>
-                <p className="font-semibold text-gray-700 truncate">{finalJson.email || ""}</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* CTA button */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-          >
-            <button onClick={handleReset}
-              className="w-full py-3 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-200/50"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
-              Register Another Doctor
-            </button>
-          </motion.div>
-
-          {/* Confetti-like dots animation */}
-          <div className="relative h-8 mt-4 overflow-hidden">
-            {[...Array(12)].map((_, i) => (
+            {[0, 1, 2].map((i) => (
               <motion.div
                 key={i}
-                className="absolute w-2 h-2 rounded-full"
-                style={{
-                  left: `${8 + i * 8}%`,
-                  background: ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"][i % 4],
-                }}
-                initial={{ y: 30, opacity: 0 }}
-                animate={{ y: [30, -10, 30], opacity: [0, 1, 0] }}
-                transition={{ delay: 0.8 + i * 0.08, duration: 1.2, ease: "easeOut" }}
+                className="w-2 h-2 rounded-full bg-blue-500"
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
               />
             ))}
-          </div>
+          </motion.div>
         </motion.div>
       </div>
     );

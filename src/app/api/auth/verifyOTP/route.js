@@ -5,9 +5,9 @@ export async function POST(request) {
   try {
     const body = await request.json();
 
-    console.log(`[DOBO] OAuth register request for: ${body.UserName}`);
+    console.log(`[DOBO] OTP verify request for: ${body.UserEmail}`);
 
-    const response = await fetch(`${PROXZAR_BASE}/api/v1/register`, {
+    const response = await fetch(`${PROXZAR_BASE}/api/v1/verifyEmailOTP`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -16,14 +16,14 @@ export async function POST(request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.log(`[DOBO] OAuth register FAILED (${response.status}):`, JSON.stringify(data));
+      console.log(`[DOBO] OTP verify FAILED (${response.status}):`, JSON.stringify(data));
       return NextResponse.json(data, { status: response.status });
     }
 
-    console.log(`[DOBO] OAuth register SUCCESS for: ${body.UserName}`);
+    console.log(`[DOBO] OTP verify SUCCESS for: ${body.UserEmail}`);
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error(`[DOBO] OAuth register ERROR:`, error?.message);
-    return NextResponse.json({ detail: "Authentication service unavailable" }, { status: 503 });
+    console.error(`[DOBO] OTP verify ERROR:`, error?.message);
+    return NextResponse.json({ detail: "Verification service unavailable" }, { status: 503 });
   }
 }

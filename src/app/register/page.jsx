@@ -263,7 +263,7 @@ export default function RegisterPage() {
               <input
                 type="text"
                 value={otp}
-                onChange={(e) => { setOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 6)); setOtpError(null); }}
+                onChange={(e) => { setOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 6)); setOtpError(null); setOtpSuccess(null); }}
                 placeholder="Enter 6-digit code"
                 maxLength={6}
                 className="w-full px-4 py-3 text-center text-lg font-bold tracking-[0.3em] rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
@@ -315,6 +315,15 @@ export default function RegisterPage() {
                     Resend OTP
                   </button>
                 </p>
+              </div>
+
+              {/* Back to edit */}
+              <div className="mt-4 pt-3 border-t border-gray-100 text-center">
+                <button type="button"
+                  onClick={() => { setOtpScreen(false); setOtp(""); setOtpError(null); setOtpSuccess(null); }}
+                  className="text-[11px] text-gray-500 font-semibold hover:text-blue-600 transition-colors">
+                  ← Back to edit details
+                </button>
               </div>
             </div>
           </div>

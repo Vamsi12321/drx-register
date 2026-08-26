@@ -251,6 +251,7 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
               {usernameValue && !errors.username && (
                 <p className="text-[10px] text-green-600 mt-1">Your login will be: <span className="font-bold">{usernameValue}</span></p>
               )}
+              <p className="text-[9px] text-gray-400 mt-1 italic">Username and password are auto-generated. Please review and edit if you want.</p>
             </div>
 
             {/* Password */}

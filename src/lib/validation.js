@@ -52,9 +52,13 @@ export function generateUsername(fullName) {
 }
 
 /**
- * Generate password from username: username@123
+ * Generate password from username
+ * "vamshi_wakad_123" → "Vamshi_wakad_123@1"
+ * First letter always uppercase
  */
 export function generatePassword(username) {
   if (!username) return "";
-  return `${username}@123`;
+  // Capitalize first letter + add symbol and number
+  const base = username.charAt(0).toUpperCase() + username.slice(1);
+  return `${base}@1`;
 }

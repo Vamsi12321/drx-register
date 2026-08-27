@@ -101,9 +101,7 @@ export default function VoiceRegistration({ onComplete }) {
       setExtractedData(extracted);
       setEntities(extracted._entities || null);
       setStage("complete");
-      const filled = Object.values(extracted).filter(Boolean).length;
-      if (filled >= 4) addToast("success", "Details extracted", `${filled}/5 fields detected.`);
-      else addToast("info", "Partial detection", `${filled}/5 fields. Fill the rest manually.`);
+      addToast("success", "Details extracted", "Please review and complete the form.");
     } catch (err) {
       setStage("error");
       if (err instanceof VoiceServiceError) addToast("error", err.status === 503 ? "Service Unavailable" : "Failed", err.message);
@@ -308,8 +306,8 @@ export default function VoiceRegistration({ onComplete }) {
           </motion.div>
         )}
 
-        {/* ── IDLE — instructions card ── */}
-        {isIdle && (
+        {/* ── RECORDING — instructions card ── */}
+        {isRecording && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex-shrink-0">
             <p className="text-sm font-bold text-blue-600 mb-3">Speak naturally in English, Hindi, or Telugu:</p>

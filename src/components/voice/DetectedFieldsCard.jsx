@@ -18,17 +18,9 @@ export default function DetectedFieldsCard({ data, confidence }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
       className="p-5 bg-white rounded-2xl border border-gray-200 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-drx-600" />
-          <h3 className="font-semibold text-gray-900 text-sm">Detected Information</h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">{filledCount}/5 fields</span>
-          <div className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${pct >= 80 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>
-            {pct}%
-          </div>
-        </div>
+      <div className="flex items-center gap-2 mb-4">
+        <Brain className="w-5 h-5 text-drx-600" />
+        <h3 className="font-semibold text-gray-900 text-sm">Detected Information</h3>
       </div>
 
       <div className="space-y-2">

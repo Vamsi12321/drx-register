@@ -235,7 +235,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); setReviewData(null); setOtpScreen(false); setOtp(""); setOtpError(null); setOtpSuccess(null); };
+  const handleReset = () => { setFinalJson(null); setMethod(null); setPrefillData(null); setSource("MANUAL"); setSubmitError(null); setVoicePipelineData(null); setReviewData(null); setOtpScreen(false); setOtp(""); setOtpError(null); setOtpSuccess(null); setVerifyingOtp(false); setIsSubmitting(false); };
 
   // ── OTP Verification Screen ──
   if (otpScreen && reviewData) {

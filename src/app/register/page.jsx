@@ -170,23 +170,36 @@ export default function RegisterPage() {
         if (Object.keys(c).length > 0) corrections = c;
       }
 
+      // Build locations array — strip internal _mapPos, drop empty fields
+      const locations = (data.locations || []).map((loc) => {
+        const item = {
+          location_priority: loc.location_priority,
+          facility_type: loc.facility_type,
+          location_name: loc.location_name || "",
+          location_source: loc.location_source || "MANUAL",
+        };
+        if (loc.facility_type === "OTHER" && loc.facility_type_other) item.facility_type_other = loc.facility_type_other;
+        if (loc.latitude) item.latitude = loc.latitude;
+        if (loc.longitude) item.longitude = loc.longitude;
+        if (loc.address) item.address = loc.address;
+        if (loc.area) item.area = loc.area;
+        if (loc.city) item.city = loc.city;
+        if (loc.district) item.district = loc.district;
+        if (loc.state) item.state = loc.state;
+        if (loc.country) item.country = loc.country;
+        if (loc.postcode) item.postcode = loc.postcode;
+        return item;
+      });
+
       const drxPayload = {
         doctor_name: data.name,
         email: data.email,
         phone: `+91${data.phone}`,
-        hospital: data.hospital,
         specialization: data.department,
         username: data.username,
         password: data.password,
         source: source,
-        location: {
-          latitude: data.location?.latitude || "",
-          longitude: data.location?.longitude || "",
-          address: data.location?.address || "",
-          city: data.location?.city || "",
-          state: data.location?.state || "",
-          country: data.location?.country || "",
-        },
+        locations: locations,
         transcript: voicePipelineData?.transcript || null,
         ner_output: voicePipelineData?.ner_output !== undefined ? voicePipelineData.ner_output : null,
         pipeline_output: voicePipelineData?.pipeline_output || null,
@@ -355,10 +368,32 @@ export default function RegisterPage() {
               <ReviewRow label="Specialization" value={reviewData.department} />
               <ReviewRow label="Username" value={reviewData.username} />
               <ReviewRow label="Password" value="••••••••" />
-              {reviewData.location?.city && (
-                <ReviewRow label="Practice Location"
-                  value={[reviewData.location.address, reviewData.location.city, reviewData.location.state, reviewData.location.country].filter(Boolean).join(", ")} />
+
+              {/* Locations */}
+              {reviewData.locations && reviewData.locations.length > 0 && (
+                <div className="py-2 border-b border-gray-50">
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Practice Locations</span>
+                  <div className="mt-2 space-y-2">
+                    {reviewData.locations.map((loc, i) => (
+                      <div key={i} className="p-2.5 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white ${
+                            loc.location_priority === "PRIMARY" ? "bg-blue-600" : loc.location_priority === "SECONDARY" ? "bg-violet-500" : "bg-gray-500"
+                          }`}>{loc.location_priority}</span>
+                          <span className="text-[11px] font-bold text-gray-700">{loc.location_name || "—"}</span>
+                          <span className="text-[9px] text-gray-400">
+                            {loc.facility_type === "OTHER" ? loc.facility_type_other : loc.facility_type}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-500">
+                          {[loc.address, loc.area, loc.city, loc.district, loc.state, loc.country, loc.postcode].filter(Boolean).join(", ") || "No address"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
+
               <ReviewRow label="Registration Source" value={source} />
             </div>
 

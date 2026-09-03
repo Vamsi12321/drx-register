@@ -43,9 +43,12 @@ export default function SearchLocation({ onLocationSelected }) {
       latitude: lat.toFixed(6),
       longitude: lng.toFixed(6),
       address: result.display_name,
-      city: result.address?.city || result.address?.town || result.address?.village || "",
+      area: result.address?.suburb || result.address?.neighbourhood || result.address?.locality || "",
+      city: result.address?.city || result.address?.town || result.address?.village || result.address?.suburb || "",
+      district: result.address?.state_district || result.address?.county || result.address?.city_district || "",
       state: result.address?.state || "",
       country: result.address?.country || "",
+      postcode: result.address?.postcode || "",
     });
     setQuery(result.display_name.split(",")[0]);
     setResults([]);

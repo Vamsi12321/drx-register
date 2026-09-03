@@ -6,20 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Mail, Phone, Building2, Send,
   ShieldCheck, Zap, BarChart2, ChevronDown,
-  Navigation, Search, MapPin, Key, Eye, EyeOff,
-  RefreshCw, AtSign
+  MapPin, Key, Eye, EyeOff,
+  RefreshCw, AtSign, Plus
 } from "lucide-react";
 import { doctorRegistrationSchema, generateUsername, generatePassword } from "@/lib/validation";
 import SpecializationSelect from "./SpecializationSelect";
-import SearchLocation from "./SearchLocation";
-import CurrentLocationButton from "./CurrentLocationButton";
-import dynamic from "next/dynamic";
+import LocationCard from "./LocationCard";
 import { useState, useEffect } from "react";
-
-const LeafletMap = dynamic(() => import("./LeafletMap"), {
-  ssr: false,
-  loading: () => <div className="w-full h-full bg-blue-50 rounded-xl animate-pulse" />,
-});
 
 const iconStyle = {
   position: "absolute", left: 10, top: "50%",
@@ -27,12 +20,24 @@ const iconStyle = {
   color: "#93c5fd", pointerEvents: "none",
 };
 
+const PRIORITY_ORDER = ["PRIMARY", "SECONDARY", "OTHER"];
+
+function emptyLocation(priority) {
+  return {
+    location_priority: priority,
+    facility_type: "",
+    facility_type_other: "",
+    location_name: "",
+    latitude: "", longitude: "", address: "",
+    area: "", city: "", district: "", state: "", country: "", postcode: "",
+    location_source: "",
+    _mapPos: null,
+  };
+}
+
 export default function ManualRegistrationForm({ prefillData, onSubmit, submitError, isSubmitting: parentSubmitting }) {
-  const [locationData, setLocationData] = useState({
-    latitude: "", longitude: "", address: "", city: "", state: "", country: "",
-  });
-  const [mapPosition, setMapPosition] = useState(null);
-  const [locTab, setLocTab] = useState("search");
+  // Locations array — PRIMARY + SECONDARY shown by default
+  const [locations, setLocations] = useState([emptyLocation("PRIMARY"), emptyLocation("SECONDARY")]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [sameAsPassword, setSameAsPassword] = useState(false);
@@ -51,7 +56,6 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
       username: prefillData?.name ? generateUsername(prefillData.name) : "",
       password: "",
       confirmPassword: "",
-      location: locationData,
     },
   });
 
@@ -91,16 +95,91 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
     }
   };
 
-  const handleLocationChange = (lat, lng, data) => {
-    setMapPosition([lat, lng]);
-    setLocationData(data);
+  // Auto-fill PRIMARY location name from hospital field
+  const hospitalValue = watch("hospital");
+  useEffect(() => {
+    if (hospitalValue && hospitalValue.trim()) {
+      setLocations((prev) => {
+        if (prev.length === 0) return prev;
+        // Only set if the primary location_name is empty
+        if (prev[0].location_name) return prev;
+        const copy = [...prev];
+        copy[0] = { ...copy[0], location_name: hospitalValue };
+        return copy;
+      });
+    }
+  }, [hospitalValue]);
+
+  // Re-assign priorities based on index
+  const reassignPriorities = (list) =>
+    list.map((loc, i) => ({
+      ...loc,
+      location_priority: i === 0 ? "PRIMARY" : i === 1 ? "SECONDARY" : "OTHER",
+    }));
+
+  const handleLocationChange = (index, updated) => {
+    setLocations((prev) => {
+      const copy = [...prev];
+      copy[index] = updated;
+      return copy;
+    });
   };
 
-  const handleManualLocationChange = (field, value) => {
-    setLocationData((prev) => ({ ...prev, [field]: value }));
+  const handleAddLocation = () => {
+    setLocations((prev) => {
+      const nextPriority = prev.length === 0 ? "PRIMARY" : prev.length === 1 ? "SECONDARY" : "OTHER";
+      return [...prev, emptyLocation(nextPriority)];
+    });
   };
 
-  const handleFormSubmit = (data) => onSubmit({ ...data, location: locationData });
+  const handleRemoveLocation = (index) => {
+    setLocations((prev) => reassignPriorities(prev.filter((_, i) => i !== index)));
+  };
+
+  const [locError, setLocError] = useState(null);
+
+  const handleFormSubmit = (data) => {
+    // Validate each location — required: facility_type, location_name, city, district, state, country, postcode
+    for (let i = 0; i < locations.length; i++) {
+      const loc = locations[i];
+      const label = loc.location_priority === "PRIMARY" ? "primary" : loc.location_priority === "SECONDARY" ? "secondary" : `location ${i + 1}`;
+
+      if (!loc.facility_type) {
+        setLocError(`Please select a practice location type for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (loc.facility_type === "OTHER" && !loc.facility_type_other?.trim()) {
+        setLocError(`Please specify the location type for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.location_name?.trim()) {
+        setLocError(`Please enter a location name for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.city?.trim()) {
+        setLocError(`Please add the city for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.district?.trim()) {
+        setLocError(`Please add the district for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.state?.trim()) {
+        setLocError(`Please add the state for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.country?.trim()) {
+        setLocError(`Please add the country for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+      if (!loc.postcode?.trim()) {
+        setLocError(`Please add the pincode for your ${label} location.`);
+        setOpen((p) => ({ ...p, location: true })); return;
+      }
+    }
+    setLocError(null);
+    onSubmit({ ...data, locations });
+  };
 
   const inp = (err) =>
     `w-full pl-9 pr-3 py-2.5 text-sm rounded-2xl border outline-none transition-all ${
@@ -316,104 +395,40 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             )}
           </AccordionSection>
 
-          {/* ── Location Information ── */}
+          {/* ── Practice Locations ── */}
           <AccordionSection icon={<MapPin className="w-3.5 h-3.5 text-white" />} iconBg="bg-emerald-500"
-            title="Practice Location" subtitle="Where is your hospital/clinic/polyclinic located?"
+            title="Practice Locations" subtitle="Add your hospital, clinic, or polyclinic locations"
             isOpen={open.location} onToggle={() => toggle("location")}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2.5">
-                {locationData.address ? (
-                  <div className="flex items-start gap-2 p-3 bg-green-50 rounded-xl border border-green-100">
-                    <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-semibold text-green-800 leading-tight truncate">
-                        {locationData.address.split(",").slice(0, 2).join(",")}
-                      </p>
-                      <p className="text-[10px] text-green-600 mt-0.5">
-                        {[locationData.city, locationData.state, locationData.country].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                    <button type="button"
-                      onClick={() => { setMapPosition(null); setLocationData({ latitude:"", longitude:"", address:"", city:"", state:"", country:"" }); }}
-                      className="text-[10px] text-green-500 font-bold hover:text-green-700 flex-shrink-0">
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => setLocTab("current")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
-                          locTab === "current" ? "bg-blue-600 text-white shadow-sm" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                        }`}>
-                        <Navigation className="w-2.5 h-2.5" /> Use Current Location
-                      </button>
-                      <button type="button" onClick={() => setLocTab("search")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
-                          locTab === "search" ? "bg-gray-800 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                        }`}>
-                        <Search className="w-2.5 h-2.5" /> Search Location
-                      </button>
-                      <button type="button" onClick={() => setLocTab("manual")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-semibold transition-all ${
-                          locTab === "manual" ? "bg-gray-800 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                        }`}>
-                        <MapPin className="w-2.5 h-2.5" /> Enter Manually
-                      </button>
-                    </div>
-                    {locTab === "current" && <CurrentLocationButton onLocationDetected={handleLocationChange} />}
-                    {locTab === "search" && <SearchLocation onLocationSelected={handleLocationChange} />}
-                    {locTab === "manual" && (
-                      <div className="grid grid-cols-1 gap-2">
-                        <div>
-                          <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Address</label>
-                          <input type="text" placeholder="Apollo Hospital, Jubilee Hills"
-                            value={locationData.address}
-                            onChange={(e) => handleManualLocationChange("address", e.target.value)}
-                            className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">City</label>
-                            <input type="text" placeholder="Hyderabad"
-                              value={locationData.city}
-                              onChange={(e) => handleManualLocationChange("city", e.target.value)}
-                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">State</label>
-                            <input type="text" placeholder="Telangana"
-                              value={locationData.state}
-                              onChange={(e) => handleManualLocationChange("state", e.target.value)}
-                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Country</label>
-                            <input type="text" placeholder="India"
-                              value={locationData.country}
-                              onChange={(e) => handleManualLocationChange("country", e.target.value)}
-                              className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              {locTab !== "manual" && (
-                <div className="h-36 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                  <LeafletMap position={mapPosition} onPositionChange={handleLocationChange} />
-                </div>
-              )}
+            <div className="space-y-3">
+              {locations.map((loc, i) => (
+                <LocationCard
+                  key={i}
+                  location={loc}
+                  index={i}
+                  onChange={handleLocationChange}
+                  onRemove={handleRemoveLocation}
+                  canRemove={i !== 0}
+                />
+              ))}
+
+              {/* Add another location button */}
+              <button type="button" onClick={handleAddLocation}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-blue-200 text-blue-600 text-xs font-semibold hover:bg-blue-50 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Add Another Location
+              </button>
+
+              <p className="text-[9px] text-gray-400 text-center">
+                Primary is required. Secondary is optional — remove it if you don&apos;t have one. Add more if needed.
+              </p>
             </div>
           </AccordionSection>
         </form>
 
         {/* Submit */}
         <div className="flex-shrink-0 px-4 md:px-8 py-3 bg-white/80 backdrop-blur border-t border-gray-100">
-          {submitError && (
+          {(submitError || locError) && (
             <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-[11px] text-red-600 font-medium text-center">{submitError}</p>
+              <p className="text-[11px] text-red-600 font-medium text-center">{submitError || locError}</p>
             </div>
           )}
           <motion.button
@@ -424,14 +439,14 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             {(isSubmitting || parentSubmitting) ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Registering...
+                Processing...
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4" /> Complete Registration
+                  <Send className="w-4 h-4" /> Review &amp; Continue
                 </div>
-                <span className="text-[9px] font-normal opacity-70">Your account will be created</span>
+                <span className="text-[9px] font-normal opacity-70">Review your details before submitting</span>
               </>
             )}
           </motion.button>

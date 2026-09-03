@@ -19,9 +19,11 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
   const [allSpecs, setAllSpecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [isCustom, setIsCustom] = useState(false); // "Other" free-text mode
 
   const triggerRef = useRef(null);
   const searchRef = useRef(null);
+  const customRef = useRef(null);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/specializations`)
@@ -80,7 +82,17 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
     onChange(spec);
     setIsOpen(false);
     setSearch("");
+    setIsCustom(false);
   }, [onChange]);
+
+  // Switch to custom free-text mode
+  const handleChooseOther = () => {
+    onChange("");
+    setIsCustom(true);
+    setIsOpen(false);
+    setSearch("");
+    setTimeout(() => customRef.current?.focus(), 60);
+  };
 
   // When searching: filter all specs. When not: show only top 6 as chips
   const searchResults = search.trim().length > 0
@@ -89,26 +101,47 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
 
   return (
     <>
-      {/* Trigger */}
+      {/* Trigger — custom text input OR dropdown button */}
       <div ref={triggerRef}>
-        <button
-          type="button"
-          disabled={disabled || loading}
-          onClick={handleOpen}
-          style={{ position: "relative" }}
-          className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 rounded-xl border text-left text-xs transition-all outline-none bg-gray-50 hover:bg-white
-            ${error ? "border-red-300" : isOpen ? "border-blue-400 ring-2 ring-blue-100 bg-white" : "border-gray-200"}
-            ${disabled || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          <Stethoscope style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", width:13, height:13, color:"#93c5fd" }} />
-          <span className={`flex-1 truncate ${value ? "text-gray-800 font-medium" : "text-gray-400"}`}>
-            {loading ? "Loading..." : value || "Select specialization"}
-          </span>
-          {value && (
-            <X onClick={(e) => { e.stopPropagation(); onChange(""); }} style={{ width:13, height:13, color:"#9ca3af" }} />
-          )}
-          <ChevronDown style={{ width:13, height:13, color:"#9ca3af", transition:"transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
-        </button>
+        {isCustom ? (
+          <div style={{ position: "relative" }}>
+            <Stethoscope style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", width:13, height:13, color:"#93c5fd" }} />
+            <input
+              ref={customRef}
+              type="text"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Enter your specialization"
+              className={`w-full pl-8 pr-8 py-2 rounded-xl border text-xs outline-none transition-all bg-white
+                ${error ? "border-red-300" : "border-blue-400 ring-2 ring-blue-100"}`}
+            />
+            <button type="button"
+              onClick={() => { setIsCustom(false); onChange(""); }}
+              title="Back to list"
+              style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)" }}>
+              <X style={{ width:13, height:13, color:"#9ca3af" }} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled || loading}
+            onClick={handleOpen}
+            style={{ position: "relative" }}
+            className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 rounded-xl border text-left text-xs transition-all outline-none bg-gray-50 hover:bg-white
+              ${error ? "border-red-300" : isOpen ? "border-blue-400 ring-2 ring-blue-100 bg-white" : "border-gray-200"}
+              ${disabled || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+          >
+            <Stethoscope style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", width:13, height:13, color:"#93c5fd" }} />
+            <span className={`flex-1 truncate ${value ? "text-gray-800 font-medium" : "text-gray-400"}`}>
+              {loading ? "Loading..." : value || "Select specialization"}
+            </span>
+            {value && (
+              <X onClick={(e) => { e.stopPropagation(); onChange(""); }} style={{ width:13, height:13, color:"#9ca3af" }} />
+            )}
+            <ChevronDown style={{ width:13, height:13, color:"#9ca3af", transition:"transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
+          </button>
+        )}
       </div>
 
       {/* Portal dropdown */}
@@ -200,6 +233,16 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
                 <p style={{ fontSize: 9, color: "#9ca3af", marginTop: 8 }}>
                   Type to search from {allSpecs.length} specializations
                 </p>
+
+                {/* Other — enter manually */}
+                <button type="button" onClick={handleChooseOther}
+                  style={{
+                    marginTop: 10, width: "100%", padding: "8px 10px", borderRadius: 8,
+                    border: "1px dashed #93c5fd", background: "#f0f9ff", color: "#2563eb",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer", textAlign: "left",
+                  }}>
+                  + Other — enter your specialization manually
+                </button>
               </>
             )}
 
@@ -207,7 +250,16 @@ export default function SpecializationSelect({ value, onChange, error, disabled 
             {search.trim() && (
               <>
                 {searchResults.length === 0 ? (
-                  <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>No results found</p>
+                  <div style={{ textAlign: "center", padding: "12px 0" }}>
+                    <p style={{ fontSize: 11, color: "#9ca3af", marginBottom: 8 }}>No results found</p>
+                    <button type="button" onClick={handleChooseOther}
+                      style={{
+                        padding: "8px 12px", borderRadius: 8, border: "1px dashed #93c5fd",
+                        background: "#f0f9ff", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                      }}>
+                      + Enter &quot;{search}&quot; manually
+                    </button>
+                  </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     {searchResults.map((spec) => {

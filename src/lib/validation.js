@@ -25,7 +25,6 @@ export const doctorRegistrationSchema = z.object({
     .regex(/[0-9]/, "Must include at least one number")
     .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Must include at least one symbol"),
   confirmPassword: z.string(),
-  location: locationSchema,
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

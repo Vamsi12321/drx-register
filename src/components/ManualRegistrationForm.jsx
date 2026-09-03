@@ -271,6 +271,7 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
                   <User style={iconStyle} />
                   <input type="text" placeholder="Dr. Rahul Sharma" {...register("name")} className={inp(errors.name)} />
                 </div>
+                <p className="text-[9px] text-gray-400 mt-1">Enter your full name (at least 8 characters).</p>
               </Label>
               <Label label="Email Address" error={errors.email?.message}>
                 <div className="relative">
@@ -330,7 +331,8 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
               {usernameValue && !errors.username && (
                 <p className="text-[10px] text-green-600 mt-1">Your login will be: <span className="font-bold">{usernameValue}</span></p>
               )}
-              <p className="text-[9px] text-gray-400 mt-1 italic">Username and password are auto-generated. Please review and edit if you want.</p>
+              <p className="text-[9px] text-gray-400 mt-1">6-16 characters. Only letters, numbers, and underscores (_).</p>
+              <p className="text-[9px] text-gray-400 mt-0.5 italic">Username and password are auto-generated. Please review and edit if you want.</p>
             </div>
 
             {/* Password */}
@@ -374,7 +376,7 @@ export default function ManualRegistrationForm({ prefillData, onSubmit, submitEr
             </div>
 
             <p className="text-[9px] text-gray-400 mt-2">
-              Password must be 8-64 characters with at least one uppercase, one lowercase, one number, and one symbol.
+              Password must be 8-64 characters with at least one uppercase, one lowercase, one number, and one symbol. Only English letters, numbers, and standard symbols are allowed.
             </p>
 
             {usernameValue && passwordValue && (

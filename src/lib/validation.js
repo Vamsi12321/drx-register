@@ -10,13 +10,17 @@ export const locationSchema = z.object({
 });
 
 export const doctorRegistrationSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().email("Please enter a valid email address"),
+  name: z.string().trim()
+    .min(8, "Full name must be at least 8 characters")
+    .max(64, "Full name must be less than 64 characters"),
+  email: z.string().trim().email("Please enter a valid email address"),
   phone: z.string().regex(/^[6-9]\d{9}$/, "Please enter a valid 10-digit Indian mobile number"),
   hospital: z.string().min(2, "Hospital name must be at least 2 characters").max(200),
   department: z.string().min(2, "Department must be at least 2 characters").max(100),
-  username: z.string().min(3, "Username must be at least 3 characters").max(30, "Username must be less than 30 characters")
-    .regex(/^[a-z0-9_]+$/, "Username can only contain lowercase letters, numbers, and underscores"),
+  username: z.string().trim()
+    .min(6, "Username must be 6-16 characters")
+    .max(16, "Username must be 6-16 characters")
+    .regex(/^[A-Za-z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
     .max(64, "Password must be less than 64 characters")
@@ -47,7 +51,10 @@ export function generateUsername(fullName) {
   if (!name) return "";
   // Append random 3-digit number
   const randomNum = Math.floor(100 + Math.random() * 900);
-  return `${name}_${randomNum}`;
+  // Cap base so the final username stays within 6-16 chars (reserve 4 for "_123")
+  const base = name.slice(0, 12).replace(/_+$/g, "");
+  let username = `${base}_${randomNum}`;
+  return username.slice(0, 16);
 }
 
 /**

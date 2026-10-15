@@ -7,6 +7,69 @@ import Link from "next/link";
 import { VoiceRegistration } from "@/components/voice";
 import ManualRegistrationForm from "@/components/ManualRegistrationForm";
 
+// Map backend field names → friendly labels for error messages
+const FIELD_LABELS = {
+  UserName: "Username",
+  UserPassword: "Password",
+  UserFullName: "Full name",
+  UserEmail: "Email",
+  UserPhone: "Phone number",
+  username: "Username",
+  password: "Password",
+  doctor_name: "Full name",
+  email: "Email",
+  phone: "Phone number",
+  specialization: "Specialization",
+};
+
+/**
+ * Turn a backend error response into a clear, human-friendly message.
+ * Falls back to `fallback` when the body is missing or in an unexpected shape,
+ * so it can never throw and never blocks the flow.
+ */
+function parseApiError(status, body, fallback) {
+  try {
+    const detail = body?.detail;
+
+    // FastAPI/Pydantic validation error: detail is an array of field errors
+    if (Array.isArray(detail) && detail.length > 0) {
+      const messages = detail.map((d) => {
+        const rawField = Array.isArray(d?.loc) ? d.loc[d.loc.length - 1] : null;
+        const label = FIELD_LABELS[rawField] || null;
+        const msg = (d?.msg || "").replace(/^String\s+/i, "").trim();
+        // Friendlier phrasing for common length rules
+        if (d?.type === "string_too_long" && d?.ctx?.max_length != null) {
+          return `${label || "This field"} must be ${d.ctx.max_length} characters or fewer.`;
+        }
+        if (d?.type === "string_too_short" && d?.ctx?.min_length != null) {
+          return `${label || "This field"} must be at least ${d.ctx.min_length} characters.`;
+        }
+        return label ? `${label}: ${msg}` : msg;
+      }).filter(Boolean);
+      if (messages.length > 0) return messages.join(" ");
+    }
+
+    // detail is a plain string
+    if (typeof detail === "string" && detail.trim()) {
+      const lower = detail.toLowerCase();
+      if (lower.includes("already taken")) {
+        return "This username is already taken. Please choose a different one.";
+      }
+      if (lower.includes("already registered") || lower.includes("duplicate")) {
+        return "A doctor with this phone number or email is already registered.";
+      }
+      // Hide raw/internal messages behind the friendly fallback
+      if (lower.includes("error adding new user") || lower.includes("error registering new user") || lower.includes("temporarily")) {
+        return fallback;
+      }
+      return detail;
+    }
+  } catch {
+    // ignore and use fallback
+  }
+  return fallback;
+}
+
 export default function RegisterPage() {
   const [method, setMethod] = useState(null);
   const [prefillData, setPrefillData] = useState(null);
@@ -90,12 +153,13 @@ export default function RegisterPage() {
 
         if (oauthErr.detail === "Error adding new user.") {
           setSubmitError("An account with this username or email already exists. Please try a different username.");
-        } else if (oauthRes.status === 422) {
-          setSubmitError("Invalid data. Please check your username and password format.");
         } else if (oauthRes.status === 503) {
           setSubmitError("Service temporarily unavailable. Please try again in a moment.");
         } else {
-          setSubmitError("Unable to create your account. Please try again.");
+          const fallback = oauthRes.status === 422
+            ? "Please check your details and try again."
+            : "Unable to create your account. Please try again.";
+          setSubmitError(parseApiError(oauthRes.status, oauthErr, fallback));
         }
         setIsSubmitting(false);
         return;
@@ -144,9 +208,9 @@ export default function RegisterPage() {
         console.log(`[DOBO] Step 2: ✗ OTP verification failed (${verifyRes.status}):`, JSON.stringify(verifyErr));
 
         if (verifyRes.status === 422) {
-          setOtpError("Invalid OTP. Please check and try again.");
+          setOtpError("Invalid OTP. Please check the code and try again.");
         } else {
-          setOtpError(verifyErr.detail || "OTP verification failed. Please try again.");
+          setOtpError("The code may be incorrect or expired. Please check the code or tap Resend OTP.");
         }
         setVerifyingOtp(false);
         return;
@@ -224,7 +288,7 @@ export default function RegisterPage() {
 
       if (!drxRes.ok) {
         console.log(`[DOBO] Step 3: ✗ DRX failed (${drxRes.status}):`, JSON.stringify(drxResult));
-        setOtpError("Registration could not be completed. Please try again.");
+        setOtpError(parseApiError(drxRes.status, drxResult, "Registration could not be completed. Please try again."));
         setVerifyingOtp(false);
         return;
       }
